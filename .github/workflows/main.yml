@@ -7,112 +7,40 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # Gunakan 22.04 yang lebih stable
+    runs-on: ubuntu-22.04
     
     steps:
-    # 1️⃣ Checkout repository
+    # 1️⃣ Checkout
     - name: Checkout repository
       uses: actions/checkout@v4
     
-    # 2️⃣ Setup Python
+    # 2️⃣ Setup Python 3.10
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.10"
     
-    # 3️⃣ Install system dependencies (FIXED - hapus libtinfo5)
+    # 3️⃣ Install dependencies
     - name: Install system dependencies
       run: |
         sudo apt update
         sudo apt install -y \
           zip unzip openjdk-17-jdk \
-          python3-pip \
-          build-essential \
-          libffi-dev \
-          libssl-dev \
-          python3-dev \
-          git wget curl \
-          autoconf automake libtool \
-          pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev \
-          cmake ccache
+          build-essential git wget \
+          python3-pip autoconf libtool \
+          pkg-config zlib1g-dev cmake
     
-    # 4️⃣ Setup Android SDK
-    - name: Setup Android SDK
-      run: |
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        mkdir -p $ANDROID_HOME/cmdline-tools
-        mkdir -p $ANDROID_HOME/tools/bin
-        
-        # Download command-line tools
-        cd $ANDROID_HOME/cmdline-tools
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q commandlinetools-linux-9477386_latest.zip
-        mv cmdline-tools latest
-        rm commandlinetools-linux-9477386_latest.zip
-        
-        # Buat symlink untuk kompatibilitas Buildozer
-        ln -s $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
-        ln -s $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager $ANDROID_HOME/tools/bin/avdmanager
-        
-        # Set environment variables
-        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
-        echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH" >> $GITHUB_ENV
-    
-    # 5️⃣ Install Android SDK components
-    - name: Install SDK components
-      run: |
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses || true
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
-          "platform-tools" \
-          "platforms;android-31" \
-          "build-tools;31.0.0"
-    
-    # 6️⃣ Install Buildozer
-    - name: Install Buildozer
-      run: |
-        pip install --upgrade pip setuptools wheel
-        pip install buildozer==1.5.0
-        pip install cython==0.29.36
-    
-    # 7️⃣ Cache Buildozer (sebelum build)
-    - name: Cache Buildozer
-      uses: actions/cache@v3
+    # 4️⃣ Use Buildozer Action (LEBIH RELIABLE)
+    - name: Build with Buildozer Action
+      uses: ArtemSBulgakov/buildozer-action@v1
+      id: buildozer
       with:
-        path: |
-          ~/.buildozer
-          android/.buildozer
-        key: buildozer-${{ runner.os }}-${{ hashFiles('android/buildozer.spec') }}-v3
-        restore-keys: |
-          buildozer-${{ runner.os }}-
+        workdir: android
+        buildozer_version: stable
     
-    # 8️⃣ Verify installation
-    - name: Verify SDK structure
-      run: |
-        echo "=== Android SDK structure ==="
-        ls -la $HOME/.buildozer/android/platform/android-sdk/tools/bin/ || echo "tools/bin not found"
-        ls -la $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ || echo "cmdline-tools not found"
-        
-        echo "=== Testing sdkmanager ==="
-        $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --version
-    
-    # 9️⃣ Build APK
-    - name: Build APK
-      working-directory: android
-      run: |
-        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-        export ANDROID_SDK_ROOT=$ANDROID_HOME
-        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
-        
-        buildozer -v android debug
-      timeout-minutes: 60
-    
-    # 🔟 Upload APK
+    # 5️⃣ Upload APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: device-tracker-apk
-        path: android/bin/*.apk
-        if-no-files-found: warn
+        path: ${{ steps.buildozer.outputs.filename }}
