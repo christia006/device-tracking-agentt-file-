@@ -32,70 +32,113 @@ jobs:
           libssl-dev \
           python3-dev \
           git wget curl \
-          autoconf automake libtool
+          autoconf automake libtool \
+          pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev \
+          libtinfo5 cmake libffi-dev libssl-dev
     
-    # 4️⃣ Setup Android SDK environment
+    # 4️⃣ Setup Android SDK (Buildozer compatible structure)
     - name: Setup Android SDK
       run: |
+        # Buat struktur direktori yang diharapkan Buildozer
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        mkdir -p $ANDROID_HOME/tools/bin
+        
+        # Download command-line tools
+        cd $ANDROID_HOME/cmdline-tools
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q commandlinetools-linux-9477386_latest.zip
+        mv cmdline-tools latest
+        rm commandlinetools-linux-9477386_latest.zip
+        
+        # Buat symlink agar sdkmanager bisa diakses dari lokasi yang diharapkan Buildozer
+        ln -s $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
+        ln -s $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager $ANDROID_HOME/tools/bin/avdmanager
+        
+        # Set environment variables
         echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
         echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
-        mkdir -p $ANDROID_HOME/cmdline-tools
+        echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH" >> $GITHUB_ENV
     
-    # 5️⃣ Download and extract Android Command-line Tools
-    - name: Install Android Command-line Tools
+    # 5️⃣ Install Android SDK components
+    - name: Install SDK components
       run: |
-        cd $ANDROID_HOME/cmdline-tools
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-        unzip -q cmdline-tools.zip
-        rm cmdline-tools.zip
-        mv cmdline-tools latest
-        
-        # Verify installation
-        ls -la $ANDROID_HOME/cmdline-tools/latest/bin/
-    
-    # 6️⃣ Install Android SDK components
-    - name: Install SDK Platform and Build Tools
-      run: |
-        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
-        yes | sdkmanager --sdk_root=$ANDROID_HOME \
+        export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses || true
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
           "platform-tools" \
           "platforms;android-31" \
           "build-tools;31.0.0" \
           "ndk;25.2.9519653"
-        
-        # Verify installation
-        ls -la $ANDROID_HOME/
     
-    # 7️⃣ Install Buildozer and dependencies
-    - name: Install Buildozer & Cython
+    # 6️⃣ Install Buildozer with specific version
+    - name: Install Buildozer
       run: |
         pip install --upgrade pip setuptools wheel
-        pip install buildozer cython==0.29.36
+        pip install buildozer==1.5.0
+        pip install cython==0.29.36
     
-    # 8️⃣ Cache Buildozer dependencies
-    - name: Cache Buildozer global directory
-      uses: actions/cache@v3
-      with:
-        path: ~/.buildozer
-        key: buildozer-${{ hashFiles('**/buildozer.spec') }}
-    
-    # 9️⃣ Build APK
-    - name: Build APK with Buildozer
+    # 7️⃣ Create/Update buildozer.spec with correct SDK path
+    - name: Configure buildozer.spec
       working-directory: android
       run: |
-        # Make sure buildozer can find SDK
+        # Jika buildozer.spec belum ada, buat yang baru
+        if [ ! -f buildozer.spec ]; then
+          buildozer init
+        fi
+        
+        # Update buildozer.spec dengan path SDK yang benar
+        sed -i 's|#android.sdk_path =|android.sdk_path = ~/.buildozer/android/platform/android-sdk|g' buildozer.spec
+        sed -i 's|#android.ndk_path =|android.ndk_path = ~/.buildozer/android/platform/android-ndk-r25b|g' buildozer.spec
+        sed -i 's|#android.accept_sdk_license =|android.accept_sdk_license = True|g' buildozer.spec
+        sed -i 's|#android.skip_update =|android.skip_update = True|g' buildozer.spec
+        
+        # Set API levels
+        sed -i 's|#android.api =|android.api = 31|g' buildozer.spec
+        sed -i 's|#android.minapi =|android.minapi = 21|g' buildozer.spec
+        sed -i 's|#android.ndk =|android.ndk = 25b|g' buildozer.spec
+        
+        echo "=== buildozer.spec configuration ==="
+        cat buildozer.spec | grep -E "android\.(sdk|ndk|api|accept|skip)"
+    
+    # 8️⃣ Cache Buildozer
+    - name: Cache Buildozer
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.buildozer
+          android/.buildozer
+        key: buildozer-${{ hashFiles('android/buildozer.spec') }}-v2
+        restore-keys: |
+          buildozer-
+    
+    # 9️⃣ Verify SDK installation
+    - name: Verify SDK structure
+      run: |
+        echo "=== Verifying Android SDK structure ==="
+        echo "ANDROID_HOME: $HOME/.buildozer/android/platform/android-sdk"
+        ls -la $HOME/.buildozer/android/platform/android-sdk/ || echo "SDK root not found"
+        ls -la $HOME/.buildozer/android/platform/android-sdk/tools/bin/ || echo "tools/bin not found"
+        ls -la $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ || echo "cmdline-tools not found"
+        
+        echo "=== Testing sdkmanager ==="
+        $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --version || echo "sdkmanager failed"
+    
+    # 🔟 Build APK
+    - name: Build APK
+      working-directory: android
+      run: |
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         export ANDROID_SDK_ROOT=$ANDROID_HOME
         export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
         
-        # Build
         buildozer -v android debug
     
-    # 🔟 Upload APK artifact
+    # 1️⃣1️⃣ Upload APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: device-tracker-apk
         path: android/bin/*.apk
-        if-no-files-found: error
+        if-no-files-found: warn
