@@ -35,7 +35,7 @@ jobs:
         pip install buildozer cython
 
     - name: Build APK
-      working-directory: device-agent/android
+      working-directory: android
       run: |
         buildozer android debug
 
