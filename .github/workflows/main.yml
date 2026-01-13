@@ -8,41 +8,46 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    
+
     steps:
     # 1️⃣ Checkout repository
     - name: Checkout repository
       uses: actions/checkout@v4
-    
-    # 2️⃣ Setup Python 3.10
+
+    # 2️⃣ Setup Python 3.10 / 3.12
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
-    
-    # 3️⃣ Install system dependencies
+        python-version: "3.12"
+
+    # 3️⃣ Install system dependencies for Buildozer / Android
     - name: Install system dependencies
       run: |
         sudo apt update
         sudo apt install -y \
           zip unzip openjdk-17-jdk \
-          build-essential git wget \
-          python3-pip autoconf libtool \
-          pkg-config zlib1g-dev cmake
-    
-    # 4️⃣ Build with Buildozer Action (fix chown error)
-    - name: Build with Buildozer Action
-      uses: ArtemSBulgakov/buildozer-action@v1
-      id: buildozer
-      with:
-        workdir: android
-        buildozer_version: stable
-      env:
-        USER: root   # ✅ override user supaya chown tidak error
-    
-    # 5️⃣ Upload APK
+          build-essential git wget python3-venv \
+          autoconf libtool pkg-config zlib1g-dev cmake
+
+    # 4️⃣ Setup virtual environment & install Buildozer
+    - name: Setup Buildozer venv
+      run: |
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install --upgrade pip
+        pip install buildozer cython
+
+    # 5️⃣ Build APK
+    - name: Build APK
+      run: |
+        source .venv/bin/activate
+        cd android
+        buildozer -v android debug
+      working-directory: android
+
+    # 6️⃣ Upload APK artifact
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: device-tracker-apk
-        path: ${{ steps.buildozer.outputs.filename }}
+        path: android/bin/*.apk
