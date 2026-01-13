@@ -5,7 +5,9 @@ package.domain = org.example
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json,txt
 version = 0.1
-requirements = python3,kivy
+
+# CRITICAL: Hapus python3 dari requirements
+requirements = kivy
 
 # Permissions
 android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,ACCESS_NETWORK_STATE
@@ -18,26 +20,22 @@ warn_on_root = 1
 android.api = 31
 android.minapi = 21
 android.ndk = 25b
+
+# CRITICAL: Gunakan SINGLE architecture saja (arm64-v8a)
+android.archs = arm64-v8a
+
+# SDK paths
 android.sdk_path = ~/.buildozer/android/platform/android-sdk
 android.ndk_path = ~/.buildozer/android/platform/android-ndk-r25b
 android.accept_sdk_license = True
 android.skip_update = True
-android.arch = arm64-v8a
 
 # Build optimization
 android.gradle_dependencies = 
-android.add_jars = 
-android.add_src = 
-android.add_aars = 
+android.add_compile_options = 
 
-# Meta-data
-android.meta_data = 
+# Whitelist
+android.whitelist = lib-dynload/termios.so
 
-# Presplash
-#android.presplash.filename = %(source.dir)s/data/presplash.png
-
-# Icon
-#icon.filename = %(source.dir)s/data/icon.png
-
-# Orientation
-#android.orientation = portrait
+# Debugging
+p4a.branch = master
