@@ -14,11 +14,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 2️⃣ Setup Python
+    # 2️⃣ Setup Python 3.10 (compatible with Buildozer)
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.12"
+        python-version: "3.10"
 
     # 3️⃣ Install system dependencies
     - name: Install system dependencies
@@ -26,13 +26,14 @@ jobs:
         sudo apt update
         sudo apt install -y \
           zip unzip openjdk-17-jdk \
-          build-essential git wget python3-venv \
+          build-essential git wget python3.10-venv \
+          python3.10-distutils \
           autoconf libtool pkg-config zlib1g-dev cmake
 
-    # 4️⃣ Setup Buildozer venv & Build APK in one step
-    - name: Setup venv & Build APK
+    # 4️⃣ Setup virtual environment & Build APK
+    - name: Setup Buildozer venv & Build APK
       run: |
-        python3 -m venv $HOME/.venv
+        python3.10 -m venv $HOME/.venv
         source $HOME/.venv/bin/activate
         pip install --upgrade pip
         pip install buildozer cython
@@ -40,8 +41,8 @@ jobs:
         buildozer -v android debug
       shell: bash
 
-    # 5️⃣ Upload APK
-    - name: Upload APK artifact
+    # 5️⃣ Upload APK artifact
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: device-tracker-apk
