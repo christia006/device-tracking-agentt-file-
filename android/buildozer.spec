@@ -3,39 +3,54 @@ title = Device Tracker
 package.name = devicetracker
 package.domain = org.example
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas,json,txt
-version = 0.1
+source.include_exts = py
+version = 1.0
+requirements = python3,kivy,requests,certifi
 
-# CRITICAL: Hapus python3 dari requirements
-requirements = kivy
+# Icon dan splash (opsional - hapus jika tidak ada)
+#icon.filename = %(source.dir)s/icon.png
+#presplash.filename = %(source.dir)s/presplash.png
 
-# Permissions
-android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,ACCESS_NETWORK_STATE
+# Permissions minimal
+android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,ACCESS_NETWORK_STATE,WAKE_LOCK
 
 [buildozer]
 log_level = 2
 warn_on_root = 1
 
-# Android specific
+# Android Configuration - OPTIMIZED
 android.api = 31
 android.minapi = 21
 android.ndk = 25b
 
-# CRITICAL: Gunakan SINGLE architecture saja (arm64-v8a)
+# CRITICAL: Single architecture untuk ukuran kecil
 android.archs = arm64-v8a
 
-# SDK paths
-android.sdk_path = ~/.buildozer/android/platform/android-sdk
-android.ndk_path = ~/.buildozer/android/platform/android-ndk-r25b
-android.accept_sdk_license = True
+# SDK Configuration
 android.skip_update = True
+android.accept_sdk_license = True
 
-# Build optimization
+# Gradle optimization
 android.gradle_dependencies = 
-android.add_compile_options = 
+
+# Meta-data
+android.meta_data = 
+
+# Orientation
+android.orientation = portrait
+
+# Fullscreen
+#android.fullscreen = 1
+
+# Add python activity
+p4a.branch = master
+p4a.bootstrap = sdl2
 
 # Whitelist
 android.whitelist = lib-dynload/termios.so
 
-# Debugging
-p4a.branch = master
+# Blacklist (untuk mengurangi ukuran)
+android.blacklist = test,tests,__pycache__,*.pyc,*.pyo
+
+# Exclude unnecessary files
+android.blacklist_src = tests,spec,docs
