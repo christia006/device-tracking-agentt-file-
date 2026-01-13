@@ -29,9 +29,10 @@ jobs:
           build-essential git wget python3.10-venv \
           python3.10-distutils \
           autoconf libtool pkg-config zlib1g-dev cmake curl unzip \
-          libncurses5 libncurses5-dev
+          libncurses5 libncurses5-dev libssl-dev libffi-dev \
+          python3-dev
 
-    # 4️⃣ Setup Android SDK dengan FIX untuk struktur folder
+    # 4️⃣ Setup Android SDK - FIXED
     - name: Install Android SDK & Build-Tools
       run: |
         ANDROID_SDK_ROOT=$HOME/android-sdk
@@ -42,42 +43,47 @@ jobs:
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
         
         echo "Unzipping..."
-        unzip -q cmdline-tools.zip -d cmdline-tools-temp
+        unzip -q cmdline-tools.zip
         rm cmdline-tools.zip
         
-        # FIX: Create proper directory structure
-        mkdir -p cmdline-tools/latest
-        mv cmdline-tools-temp/cmdline-tools/* cmdline-tools/latest/
-        rm -rf cmdline-tools-temp
+        # FIXED: Correct directory structure
+        mkdir -p cmdline-tools
+        mv tools cmdline-tools/latest
         
         # Set PATH
         export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
         export PATH=$ANDROID_SDK_ROOT/platform-tools:$PATH
         
-        # Accept licenses NON-INTERACTIVELY
+        # Accept ALL licenses NON-INTERACTIVELY
         mkdir -p "$ANDROID_SDK_ROOT/licenses"
-        echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
-        echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
-        echo -e "\nd56f5187479451eabf01fb78af6dfcb131a6481e" > "$ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license"
+        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
+        echo "84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" > "$ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license"
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_SDK_ROOT/licenses/android-googletv-license"
+        echo "601085b94cd77f0b54ff86406957099ebe79c4d6" > "$ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license"
         
         # Install required components
         echo "Installing Android SDK components..."
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1
         
-        # Install platform tools and build tools
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "build-tools;34.0.0"
+        # Install specific versions
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --install \
+          "platform-tools" \
+          "platforms;android-33" \
+          "build-tools;33.0.2" \
+          "build-tools;34.0.0" \
+          "cmdline-tools;latest"
         
         # Verify installation
-        echo "Verifying installation..."
+        echo "SDK installed at: $ANDROID_SDK_ROOT"
         ls -la $ANDROID_SDK_ROOT/build-tools/
         
         # Create symlink for aidl
         if [ -f "$ANDROID_SDK_ROOT/build-tools/33.0.2/aidl" ]; then
           sudo ln -sf $ANDROID_SDK_ROOT/build-tools/33.0.2/aidl /usr/local/bin/aidl
           sudo chmod +x /usr/local/bin/aidl
+          echo "✅ Aidl symlink created"
         fi
-        
-        echo "Android SDK setup completed!"
 
     # 5️⃣ Setup environment variables
     - name: Setup environment variables
@@ -85,57 +91,144 @@ jobs:
         echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
         echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
         echo "PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+        echo "BUILDOZER_ANDROID_ACCEPT_SDK_LICENSE=1" >> $GITHUB_ENV
+        echo "CI=1" >> $GITHUB_ENV
 
-    # 6️⃣ Install Buildozer dan dependencies
+    # 6️⃣ Install Buildozer dan dependencies - FIXED
     - name: Install Buildozer
       run: |
         python3.10 -m venv $HOME/.venv
         source $HOME/.venv/bin/activate
-        pip install --upgrade pip setuptools wheel
-        pip install buildozer cython==0.29.33
         
-        # Install additional dependencies
-        pip install kivy kivymd pillow
+        # Upgrade pip first
+        pip install --upgrade pip setuptools wheel
+        
+        # Install buildozer with specific version
+        pip install buildozer==1.5.0 cython==0.29.33
+        
+        # Install Kivy dependencies if needed
+        pip install kivy==2.1.0 kivymd==1.1.1 pillow==10.0.0
 
-    # 7️⃣ Build APK dengan Buildozer
+    # 7️⃣ Configure Buildozer to use pre-installed SDK - MOST IMPORTANT FIX
+    - name: Configure Buildozer
+      run: |
+        source $HOME/.venv/bin/activate
+        
+        # Create or update buildozer.spec with CORRECT settings
+        if [ ! -f "buildozer.spec" ]; then
+          buildozer init
+        fi
+        
+        # CRITICAL: Tell Buildozer to use our pre-installed SDK
+        # Create a custom .buildozer config file
+        mkdir -p ~/.buildozer
+        cat > ~/.buildozer/config << EOF
+[app]
+# Use our pre-installed SDK
+android.sdk_path = $HOME/android-sdk
+android.ndk_path = $HOME/.buildozer/android/platform/android-ndk-r25b
+android.accept_sdk_license = True
+android.skip_update = True
+android.allow_backup = True
+android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE
+
+[buildozer]
+log_level = 2
+warn_on_root = 1
+EOF
+
+        # Update buildozer.spec with absolute paths
+        cat > buildozer.spec << 'EOF'
+[app]
+title = My Application
+package.name = myapp
+package.domain = org.test
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 1.0
+requirements = python3,kivy==2.1.0
+orientation = portrait
+osx.python_version = 3
+osx.kivy_version = 1.11.1
+fullscreen = 0
+
+[buildozer]
+log_level = 2
+warn_on_root = 1
+
+# ANDROID SPECIFIC
+[android]
+# Use the SDK we installed manually
+android.sdk_path = /home/runner/android-sdk
+android.ndk_path = /home/runner/.buildozer/android/platform/android-ndk-r25b
+android.ndk_version = 25b
+android.sdk_dir = /home/runner/android-sdk
+android.skip_update = True
+android.accept_sdk_license = True
+android.arch = arm64-v8a
+android.buildtools = 33.0.2
+
+# App permissions
+android.permissions = INTERNET,ACCESS_NETWORK_STATE,ACCESS_WIFI_STATE
+
+# Android API level
+android.api = 33
+android.minapi = 21
+android.maxapi = 33
+
+# Android packaging
+android.allow_backup = True
+android.gradle_dependencies = ''
+
+[ios]
+
+[linux]
+
+EOF
+
+    # 8️⃣ Build APK with Buildozer - FINAL FIX
     - name: Build APK with Buildozer
       run: |
         source $HOME/.venv/bin/activate
         
-        # Create buildozer.spec if not exists
-        if [ ! -f "buildozer.spec" ]; then
-          echo "Creating buildozer.spec..."
-          buildozer init
-        fi
+        # Set ALL environment variables
+        export ANDROID_SDK_ROOT=$HOME/android-sdk
+        export ANDROID_HOME=$HOME/android-sdk
+        export ANDROID_SDK=$HOME/android-sdk
+        export ANDROID_NDK_HOME=$HOME/.buildozer/android/platform/android-ndk-r25b
+        export ANDROID_NDK=$HOME/.buildozer/android/platform/android-ndk-r25b
+        export PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH
         
-        # Update buildozer.spec dengan path yang benar
-        sed -i "s|#android.sdk_path = .*|android.sdk_path = $HOME/android-sdk|" buildozer.spec
-        sed -i "s|#android.ndk_path = .*|android.ndk_path = $HOME/.buildozer/android/platform/android-ndk|" buildozer.spec
-        sed -i "s|#android.buildtools = .*|android.buildtools = 33.0.2|" buildozer.spec
+        # Clean any previous builds
+        rm -rf .buildozer bin
         
-        # Build APK
-        echo "Building APK..."
-        ANDROID_SDK_ROOT=$HOME/android-sdk \
-        ANDROID_HOME=$HOME/android-sdk \
-        PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH \
-        buildozer -v android debug 2>&1 | tee build.log
+        # Build with verbose output and skip SDK download
+        echo "🚀 Starting APK build..."
+        
+        # Use buildozer with explicit SDK path and skip SDK updates
+        buildozer android debug \
+          --sdk-dir $HOME/android-sdk \
+          --ndk-dir $HOME/.buildozer/android/platform/android-ndk-r25b \
+          --skip-update 2>&1 | tee build.log
         
         # Check if APK was created
         if find . -name "*.apk" | grep -q .; then
           echo "✅ APK created successfully!"
-          # Copy APK to predictable location
           mkdir -p apk_output
           APK_FILE=$(find . -name "*.apk" | head -1)
           cp "$APK_FILE" apk_output/app-debug.apk
-          echo "APK location: $APK_FILE"
+          echo "📱 APK saved to: apk_output/app-debug.apk"
+          echo "📦 APK size: $(du -h apk_output/app-debug.apk | cut -f1)"
         else
           echo "❌ APK not found!"
           echo "Last 50 lines of build log:"
           tail -50 build.log
+          echo "Full error output:"
+          cat build.log | grep -A 10 -B 10 "error\|Error\|ERROR\|fail\|Fail\|FAIL"
           exit 1
         fi
 
-    # 8️⃣ Upload APK artifact
+    # 9️⃣ Upload APK artifact
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
@@ -145,3 +238,17 @@ jobs:
           bin/*.apk
           *.apk
         if-no-files-found: error
+        retention-days: 7
+
+    # 🔟 Debug information
+    - name: Show build information
+      if: always()
+      run: |
+        echo "=== Build Information ==="
+        echo "SDK Path: $HOME/android-sdk"
+        echo "Build tools available:"
+        ls -la $HOME/android-sdk/build-tools/ || echo "No build tools found"
+        echo "Aidl location:"
+        which aidl || echo "Aidl not in PATH"
+        echo "=== Buildozer files ==="
+        find . -name "*.apk" -o -name "build.log" | head -10
