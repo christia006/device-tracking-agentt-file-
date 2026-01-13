@@ -14,8 +14,8 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # 2️⃣ Setup Python 3.10 (Buildozer compatible)
-    - name: Setup Python
+    # 2️⃣ Setup Python 3.10
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.10"
@@ -28,39 +28,107 @@ jobs:
           zip unzip openjdk-17-jdk \
           build-essential git wget python3.10-venv \
           python3.10-distutils \
-          autoconf libtool pkg-config zlib1g-dev cmake curl unzip
+          autoconf libtool pkg-config zlib1g-dev cmake curl unzip \
+          libncurses5 libncurses5-dev
 
-    # 4️⃣ Setup Android SDK (manual, stable build-tools)
-    - name: Setup Android SDK
+    # 4️⃣ Setup Android SDK dengan license acceptance
+    - name: Install Android SDK & Build-Tools
       run: |
-        export ANDROID_SDK_ROOT=$HOME/android-sdk
-        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-        cd $ANDROID_SDK_ROOT/cmdline-tools
+        ANDROID_SDK_ROOT=$HOME/android-sdk
+        mkdir -p $ANDROID_SDK_ROOT
+        cd $ANDROID_SDK_ROOT
+        
+        # Download command line tools
         curl -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
         unzip commandlinetools.zip
         rm commandlinetools.zip
-        mv cmdline-tools latest
+        
+        # Setup directory structure
+        mkdir -p cmdline-tools
+        mv cmdline-tools/latest/ cmdline-tools/latest/ 2>/dev/null || true
+        mv tools/ cmdline-tools/latest/
+        
         export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
         export PATH=$ANDROID_SDK_ROOT/platform-tools:$PATH
-        yes | sdkmanager --licenses
-        sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
+        
+        # Accept all licenses NON-INTERACTIVELY
+        mkdir -p "$ANDROID_SDK_ROOT/licenses"
+        echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" > "$ANDROID_SDK_ROOT/licenses/android-sdk-license"
+        echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_SDK_ROOT/licenses/android-sdk-preview-license"
+        echo -e "\nd56f5187479451eabf01fb78af6dfcb131a6481e" > "$ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license"
+        echo -e "\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$ANDROID_SDK_ROOT/licenses/android-googletv-license"
+        echo -e "\n601085b94cd77f0b54ff86406957099ebe79c4d6" > "$ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license"
+        
+        # Install SDK components
+        yes | sdkmanager --licenses || true
+        
+        # Install specific versions
+        sdkmanager "platform-tools"
+        sdkmanager "platforms;android-33"
+        sdkmanager "build-tools;33.0.2"
+        sdkmanager "build-tools;36.0.0"  # Alternative to 36.1
+        
+        # Create symlink for aidl (important!)
+        cd $ANDROID_SDK_ROOT/build-tools/
+        for dir in */; do
+          if [ -f "$dir/aidl" ]; then
+            ln -sf "$(realpath $dir/aidl)" /usr/local/bin/aidl 2>/dev/null || true
+            ln -sf "$(realpath $dir/aidl)" /usr/bin/aidl 2>/dev/null || true
+          fi
+        done
+        
+        # Verify installation
+        ls -la $ANDROID_SDK_ROOT/build-tools/
+        which aidl || echo "Aidl check"
 
-    # 5️⃣ Setup Buildozer venv & Build APK
+    # 5️⃣ Setup environment variables
+    - name: Setup environment variables
+      run: |
+        echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+
+    # 6️⃣ Setup Buildozer dan build APK
     - name: Setup Buildozer venv & Build APK
       run: |
         python3.10 -m venv $HOME/.venv
         source $HOME/.venv/bin/activate
-        pip install --upgrade pip
-        pip install buildozer cython
-        cd android
-        # Override build-tools version ke 33.0.2 agar lisensi accepted
-        sed -i 's/^android.build_tools_version *=.*/android.build_tools_version = 33.0.2/' buildozer.spec
-        ANDROIDSDK=$HOME/android-sdk buildozer -v android debug
+        pip install --upgrade pip setuptools wheel
+        pip install buildozer cython==0.29.33
+        
+        # Initialize Buildozer if needed
+        if [ ! -f "buildozer.spec" ]; then
+          buildozer init
+        fi
+        
+        # Update buildozer.spec with correct SDK path
+        sed -i "s|android.sdk_path = .*|android.sdk_path = $HOME/android-sdk|" buildozer.spec 2>/dev/null || true
+        
+        # Build APK with verbose output
+        echo "Starting APK build..."
+        ANDROID_SDK_ROOT=$HOME/android-sdk \
+        ANDROID_HOME=$HOME/android-sdk \
+        PATH=$HOME/android-sdk/platform-tools:$HOME/android-sdk/cmdline-tools/latest/bin:$PATH \
+        buildozer -v android debug 2>&1 | tee build.log
+        
+        # Check if APK was created
+        if find . -name "*.apk" | grep -q .; then
+          echo "APK created successfully!"
+          mkdir -p apk_output
+          cp $(find . -name "*.apk" | head -1) apk_output/app-debug.apk
+        else
+          echo "APK not found. Check build.log for errors"
+          cat build.log | tail -100
+          exit 1
+        fi
       shell: bash
 
-    # 6️⃣ Upload APK artifact
+    # 7️⃣ Upload APK artifact
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: device-tracker-apk
-        path: android/bin/*.apk
+        name: android-apk
+        path: |
+          apk_output/*.apk
+          *.apk
+        if-no-files-found: error
