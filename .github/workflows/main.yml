@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # Gunakan 22.04 yang lebih stable
     
     steps:
     # 1️⃣ Checkout repository
@@ -20,7 +20,7 @@ jobs:
       with:
         python-version: "3.10"
     
-    # 3️⃣ Install system dependencies
+    # 3️⃣ Install system dependencies (FIXED - hapus libtinfo5)
     - name: Install system dependencies
       run: |
         sudo apt update
@@ -35,12 +35,11 @@ jobs:
           autoconf automake libtool \
           pkg-config zlib1g-dev \
           libncurses5-dev libncursesw5-dev \
-          libtinfo5 cmake libffi-dev libssl-dev
+          cmake ccache
     
-    # 4️⃣ Setup Android SDK (Buildozer compatible structure)
+    # 4️⃣ Setup Android SDK
     - name: Setup Android SDK
       run: |
-        # Buat struktur direktori yang diharapkan Buildozer
         export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
         mkdir -p $ANDROID_HOME/cmdline-tools
         mkdir -p $ANDROID_HOME/tools/bin
@@ -52,7 +51,7 @@ jobs:
         mv cmdline-tools latest
         rm commandlinetools-linux-9477386_latest.zip
         
-        # Buat symlink agar sdkmanager bisa diakses dari lokasi yang diharapkan Buildozer
+        # Buat symlink untuk kompatibilitas Buildozer
         ln -s $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager $ANDROID_HOME/tools/bin/sdkmanager
         ln -s $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager $ANDROID_HOME/tools/bin/avdmanager
         
@@ -69,63 +68,37 @@ jobs:
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME \
           "platform-tools" \
           "platforms;android-31" \
-          "build-tools;31.0.0" \
-          "ndk;25.2.9519653"
+          "build-tools;31.0.0"
     
-    # 6️⃣ Install Buildozer with specific version
+    # 6️⃣ Install Buildozer
     - name: Install Buildozer
       run: |
         pip install --upgrade pip setuptools wheel
         pip install buildozer==1.5.0
         pip install cython==0.29.36
     
-    # 7️⃣ Create/Update buildozer.spec with correct SDK path
-    - name: Configure buildozer.spec
-      working-directory: android
-      run: |
-        # Jika buildozer.spec belum ada, buat yang baru
-        if [ ! -f buildozer.spec ]; then
-          buildozer init
-        fi
-        
-        # Update buildozer.spec dengan path SDK yang benar
-        sed -i 's|#android.sdk_path =|android.sdk_path = ~/.buildozer/android/platform/android-sdk|g' buildozer.spec
-        sed -i 's|#android.ndk_path =|android.ndk_path = ~/.buildozer/android/platform/android-ndk-r25b|g' buildozer.spec
-        sed -i 's|#android.accept_sdk_license =|android.accept_sdk_license = True|g' buildozer.spec
-        sed -i 's|#android.skip_update =|android.skip_update = True|g' buildozer.spec
-        
-        # Set API levels
-        sed -i 's|#android.api =|android.api = 31|g' buildozer.spec
-        sed -i 's|#android.minapi =|android.minapi = 21|g' buildozer.spec
-        sed -i 's|#android.ndk =|android.ndk = 25b|g' buildozer.spec
-        
-        echo "=== buildozer.spec configuration ==="
-        cat buildozer.spec | grep -E "android\.(sdk|ndk|api|accept|skip)"
-    
-    # 8️⃣ Cache Buildozer
+    # 7️⃣ Cache Buildozer (sebelum build)
     - name: Cache Buildozer
       uses: actions/cache@v3
       with:
         path: |
           ~/.buildozer
           android/.buildozer
-        key: buildozer-${{ hashFiles('android/buildozer.spec') }}-v2
+        key: buildozer-${{ runner.os }}-${{ hashFiles('android/buildozer.spec') }}-v3
         restore-keys: |
-          buildozer-
+          buildozer-${{ runner.os }}-
     
-    # 9️⃣ Verify SDK installation
+    # 8️⃣ Verify installation
     - name: Verify SDK structure
       run: |
-        echo "=== Verifying Android SDK structure ==="
-        echo "ANDROID_HOME: $HOME/.buildozer/android/platform/android-sdk"
-        ls -la $HOME/.buildozer/android/platform/android-sdk/ || echo "SDK root not found"
+        echo "=== Android SDK structure ==="
         ls -la $HOME/.buildozer/android/platform/android-sdk/tools/bin/ || echo "tools/bin not found"
         ls -la $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/ || echo "cmdline-tools not found"
         
         echo "=== Testing sdkmanager ==="
-        $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --version || echo "sdkmanager failed"
+        $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --version
     
-    # 🔟 Build APK
+    # 9️⃣ Build APK
     - name: Build APK
       working-directory: android
       run: |
@@ -134,8 +107,9 @@ jobs:
         export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
         
         buildozer -v android debug
+      timeout-minutes: 60
     
-    # 1️⃣1️⃣ Upload APK
+    # 🔟 Upload APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
