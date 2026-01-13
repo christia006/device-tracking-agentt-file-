@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
     
     steps:
-    # 1️⃣ Checkout
+    # 1️⃣ Checkout repository
     - name: Checkout repository
       uses: actions/checkout@v4
     
@@ -20,7 +20,7 @@ jobs:
       with:
         python-version: "3.10"
     
-    # 3️⃣ Install dependencies
+    # 3️⃣ Install system dependencies
     - name: Install system dependencies
       run: |
         sudo apt update
@@ -30,13 +30,15 @@ jobs:
           python3-pip autoconf libtool \
           pkg-config zlib1g-dev cmake
     
-    # 4️⃣ Use Buildozer Action (LEBIH RELIABLE)
+    # 4️⃣ Build with Buildozer Action (fix chown error)
     - name: Build with Buildozer Action
       uses: ArtemSBulgakov/buildozer-action@v1
       id: buildozer
       with:
         workdir: android
         buildozer_version: stable
+      env:
+        USER: root   # ✅ override user supaya chown tidak error
     
     # 5️⃣ Upload APK
     - name: Upload APK
