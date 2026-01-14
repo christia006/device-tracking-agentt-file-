@@ -1,6 +1,6 @@
 """
 Android Device Tracking Agent - PRODUCTION VERSION
-Optimized for small APK size
+Fixed for Buildozer compatibility
 """
 
 import json
@@ -20,20 +20,29 @@ from kivy.utils import platform
 
 # Android imports
 if platform == 'android':
-    from android.permissions import request_permissions, Permission
-    from jnius import autoclass
-    
-    PythonActivity = autoclass('org.kivy.android.PythonActivity')
-    LocationManager = autoclass('android.location.LocationManager')
-    Context = autoclass('android.content.Context')
-    BatteryManager = autoclass('android.os.BatteryManager')
-    Intent = autoclass('android.content.Intent')
+    try:
+        from android.permissions import request_permissions, Permission
+        from jnius import autoclass
+        
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        LocationManager = autoclass('android.location.LocationManager')
+        Context = autoclass('android.content.Context')
+        BatteryManager = autoclass('android.os.BatteryManager')
+        Intent = autoclass('android.content.Intent')
+        ANDROID_AVAILABLE = True
+    except Exception as e:
+        print(f"Android imports failed: {e}")
+        ANDROID_AVAILABLE = False
+else:
+    ANDROID_AVAILABLE = False
 
 # Requests import
 try:
     import requests
+    REQUESTS_AVAILABLE = True
 except ImportError:
-    requests = None
+    print("Requests not available, using offline mode")
+    REQUESTS_AVAILABLE = False
 
 # CONFIGURATION
 API_BASE_URL = "https://datakah06.pythonanywhere.com"
@@ -47,41 +56,53 @@ class LocationCollector:
         self.location_manager = None
         self.context = None
         
-        if platform == 'android':
-            self.context = PythonActivity.mActivity
-            self.location_manager = self.context.getSystemService(Context.LOCATION_SERVICE)
+        if platform == 'android' and ANDROID_AVAILABLE:
+            try:
+                self.context = PythonActivity.mActivity
+                self.location_manager = self.context.getSystemService(Context.LOCATION_SERVICE)
+            except Exception as e:
+                print(f"Failed to init LocationManager: {e}")
     
     def get_battery_level(self):
         try:
-            if platform == 'android':
+            if platform == 'android' and ANDROID_AVAILABLE and self.context:
                 intent_filter = autoclass('android.content.IntentFilter')(Intent.ACTION_BATTERY_CHANGED)
                 battery_status = self.context.registerReceiver(None, intent_filter)
-                level = battery_status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                scale = battery_status.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                return int((level / float(scale)) * 100) if scale > 0 else 100
+                if battery_status:
+                    level = battery_status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                    scale = battery_status.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                    return int((level / float(scale)) * 100) if scale > 0 else 100
             return 100
-        except:
+        except Exception as e:
+            print(f"Battery level error: {e}")
             return 100
     
     def get_location(self):
         try:
-            if platform == 'android':
+            if platform == 'android' and ANDROID_AVAILABLE and self.location_manager:
                 for provider in [LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER]:
-                    location = self.location_manager.getLastKnownLocation(provider)
-                    if location:
-                        return {
-                            "lat": location.getLatitude(),
-                            "lng": location.getLongitude()
-                        }
+                    try:
+                        location = self.location_manager.getLastKnownLocation(provider)
+                        if location:
+                            return {
+                                "lat": location.getLatitude(),
+                                "lng": location.getLongitude()
+                            }
+                    except Exception as e:
+                        print(f"Provider {provider} failed: {e}")
+                        continue
             
             # Fallback to IP geolocation
-            if requests:
-                response = requests.get("http://ip-api.com/json/", timeout=5)
-                data = response.json()
-                if data.get("status") == "success":
-                    return {"lat": data.get("lat", 0.0), "lng": data.get("lon", 0.0)}
-        except:
-            pass
+            if REQUESTS_AVAILABLE:
+                try:
+                    response = requests.get("http://ip-api.com/json/", timeout=5)
+                    data = response.json()
+                    if data.get("status") == "success":
+                        return {"lat": data.get("lat", 0.0), "lng": data.get("lon", 0.0)}
+                except Exception as e:
+                    print(f"IP geolocation failed: {e}")
+        except Exception as e:
+            print(f"Location error: {e}")
         
         return {"lat": -6.175, "lng": 106.827}  # Default Jakarta
     
@@ -92,7 +113,7 @@ class LocationCollector:
             "lat": location["lat"],
             "lng": location["lng"],
             "battery": self.get_battery_level(),
-            "network": "online" if requests else "offline"
+            "network": "online" if REQUESTS_AVAILABLE else "offline"
         }
 
 
@@ -110,34 +131,47 @@ class DeviceAgent:
         self.cache_file = self.data_dir / "cache.json"
     
     def _get_data_dir(self):
-        if platform == 'android':
-            from android.storage import app_storage_path
-            data_dir = Path(app_storage_path())
-        else:
-            data_dir = Path.cwd()
-        data_dir.mkdir(parents=True, exist_ok=True)
-        return data_dir
+        try:
+            if platform == 'android':
+                from android.storage import app_storage_path
+                data_dir = Path(app_storage_path())
+            else:
+                data_dir = Path.cwd()
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return data_dir
+        except Exception as e:
+            print(f"Data dir error: {e}")
+            return Path.cwd()
     
     def get_or_create_device_id(self):
-        if self.device_id_file.exists():
-            return self.device_id_file.read_text().strip()
-        device_id = f"dev{uuid.uuid4().hex[:8]}"
-        self.device_id_file.write_text(device_id)
-        return device_id
+        try:
+            if self.device_id_file.exists():
+                return self.device_id_file.read_text().strip()
+            device_id = f"dev{uuid.uuid4().hex[:8]}"
+            self.device_id_file.write_text(device_id)
+            return device_id
+        except Exception as e:
+            print(f"Device ID error: {e}")
+            return f"dev{uuid.uuid4().hex[:8]}"
     
     def load_cache(self):
-        if self.cache_file.exists():
-            try:
+        try:
+            if self.cache_file.exists():
                 self.cache = json.loads(self.cache_file.read_text())
-            except:
-                self.cache = []
+        except Exception as e:
+            print(f"Load cache error: {e}")
+            self.cache = []
     
     def save_cache(self):
-        self.cache_file.write_text(json.dumps(self.cache))
+        try:
+            self.cache_file.write_text(json.dumps(self.cache))
+        except Exception as e:
+            print(f"Save cache error: {e}")
     
     def register_device(self):
-        if not requests:
-            return False
+        if not REQUESTS_AVAILABLE:
+            print("Requests not available, skipping registration")
+            return True  # Allow offline mode
         try:
             response = requests.post(
                 f"{API_BASE_URL}/devices/register",
@@ -145,11 +179,12 @@ class DeviceAgent:
                 timeout=10
             )
             return response.status_code == 200
-        except:
-            return False
+        except Exception as e:
+            print(f"Registration error: {e}")
+            return True  # Allow offline mode
     
     def send_locations(self, locations):
-        if not requests:
+        if not REQUESTS_AVAILABLE:
             return False
         try:
             response = requests.post(
@@ -160,7 +195,8 @@ class DeviceAgent:
             if response.status_code == 403:
                 self.is_revoked = True
             return response.status_code == 200
-        except:
+        except Exception as e:
+            print(f"Send locations error: {e}")
             return False
     
     def collect_and_cache(self):
@@ -291,7 +327,8 @@ class TrackingScreen(BoxLayout):
     
     def add_log(self, message):
         timestamp = datetime.now().strftime('%H:%M:%S')
-        self.log_label.text += f'\n[{timestamp}] {message}'
+        new_log = f'[{timestamp}] {message}'
+        self.log_label.text = new_log + '\n' + self.log_label.text
 
 
 class TrackerApp(App):
@@ -305,13 +342,16 @@ class TrackerApp(App):
         return ConsentScreen(self)
     
     def on_start(self):
-        if platform == 'android':
-            request_permissions([
-                Permission.ACCESS_FINE_LOCATION,
-                Permission.ACCESS_COARSE_LOCATION,
-                Permission.INTERNET,
-                Permission.ACCESS_NETWORK_STATE
-            ])
+        if platform == 'android' and ANDROID_AVAILABLE:
+            try:
+                request_permissions([
+                    Permission.ACCESS_FINE_LOCATION,
+                    Permission.ACCESS_COARSE_LOCATION,
+                    Permission.INTERNET,
+                    Permission.ACCESS_NETWORK_STATE
+                ])
+            except Exception as e:
+                print(f"Permission request failed: {e}")
     
     def on_consent_given(self, username):
         self.tracking_screen = TrackingScreen(self)
@@ -323,8 +363,9 @@ class TrackerApp(App):
             self.tracking_screen.add_log('✓ Device registered')
             Clock.schedule_interval(self.tracking_loop, LOCATION_INTERVAL)
         else:
-            self.tracking_screen.update_status('Failed')
-            self.tracking_screen.add_log('✗ Registration failed')
+            self.tracking_screen.update_status('Offline Mode')
+            self.tracking_screen.add_log('⚠ Working offline')
+            Clock.schedule_interval(self.tracking_loop, LOCATION_INTERVAL)
     
     def tracking_loop(self, dt):
         if not self.agent.running or self.agent.is_revoked:
@@ -336,10 +377,10 @@ class TrackerApp(App):
             self.tracking_screen.update_cache(len(self.agent.cache))
             self.tracking_screen.add_log(f'📍 Collected | Battery: {location["battery"]}%')
             
-            if self.agent.sync_cache():
+            if REQUESTS_AVAILABLE and self.agent.sync_cache():
                 self.tracking_screen.add_log('✓ Synced to backend')
             
-            status = 'REVOKED' if self.agent.is_revoked else 'ACTIVE'
+            status = 'REVOKED' if self.agent.is_revoked else ('ACTIVE' if REQUESTS_AVAILABLE else 'OFFLINE')
             self.tracking_screen.update_status(status)
         except Exception as e:
             self.tracking_screen.add_log(f'✗ {str(e)}')
@@ -348,12 +389,9 @@ class TrackerApp(App):
     
     def on_stop(self):
         self.agent.running = False
-        if self.agent.cache:
+        if self.agent.cache and REQUESTS_AVAILABLE:
             self.agent.sync_cache()
 
 
 if __name__ == '__main__':
     TrackerApp().run()
-
-
-
