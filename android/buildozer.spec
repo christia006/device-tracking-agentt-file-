@@ -30,18 +30,14 @@ android.permissions = INTERNET,ACCESS_FINE_LOCATION
 # ---------------- Android Configuration ----------------
 android.api = 34
 android.minapi = 21
-android.sdk = 34
 android.ndk = 25b
 android.ndk_api = 21
-
-# Accept licenses otomatis
 android.accept_sdk_license = True
-
-# Skip update jika SDK sudah ada
 android.skip_update = False
-
-# Architecture
 android.archs = arm64-v8a,armeabi-v7a
+
+# Tambahan flag untuk menghindari warning macro redefined
+android.add_cflags = -Wno-macro-redefined
 
 # Buildozer settings
 log_level = 2
