@@ -354,14 +354,6 @@ class TrackerApp(App):
 
 if __name__ == '__main__':
     TrackerApp().run()
-```
 
-## 📂 Struktur Folder:
-```
-your-repo/
-├── .github/
-│   └── workflows/
-│       └── main.yml
-└── android/
-    ├── buildozer.spec
-    └── main.py
+
+
