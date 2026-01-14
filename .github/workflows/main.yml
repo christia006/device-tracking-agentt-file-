@@ -1,5 +1,4 @@
 name: Build APK
-
 on:
   push:
     branches: [ main ]
@@ -7,25 +6,25 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-
+    
     steps:
       # 1. Checkout kode
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # 2. Setup Python
+      
+      # 2. Setup Python 3.11
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11
-
+          python-version: '3.11'
+      
       # 3. Setup Java (OpenJDK 17)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: 17
-
+          distribution: 'temurin'
+          java-version: '17'
+      
       # 4. Install Linux dependencies Buildozer/Android
       - name: Install Linux dependencies
         run: |
@@ -47,28 +46,72 @@ jobs:
             zip \
             openjdk-17-jdk \
             cmake \
+            ccache \
+            libgoogle-perftools4 \
+            libc6 \
+            libstdc++6 \
+            libpulse0 \
+            libasound2 \
             x11-utils \
             libatk-wrapper-java \
             libatk-wrapper-java-jni \
             libpcsclite1 \
             librhash0
-
+      
       # 5. Install Buildozer & dependencies Python
       - name: Install Buildozer
         run: |
           python3 -m pip install --upgrade pip
           pip install --upgrade Cython==0.29.33
           pip install --upgrade buildozer
-
-      # 6. Build APK
-      - name: Build APK
+      
+      # 6. Setup Android SDK dan Accept Licenses
+      - name: Setup Android SDK and Accept Licenses
         run: |
+          # Install Android SDK Command-line tools
+          mkdir -p $HOME/.android/sdk/cmdline-tools
+          cd $HOME/.android/sdk/cmdline-tools
+          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip commandlinetools-linux-9477386_latest.zip
+          mv cmdline-tools latest
+          
+          # Set environment variables
+          export ANDROID_HOME=$HOME/.android/sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          
+          # Accept all licenses
+          yes | sdkmanager --licenses || true
+          
+          # Install required SDK components
+          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "cmdline-tools;latest"
+          
+          # Verify installation
+          sdkmanager --list_installed
+      
+      # 7. Cache Buildozer dependencies
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-${{ hashFiles('android/buildozer.spec') }}
+      
+      # 8. Build APK
+      - name: Build APK
+        env:
+          ANDROID_HOME: ${{ github.workspace }}/.android/sdk
+        run: |
+          # Set Android SDK path untuk Buildozer
+          export ANDROID_HOME=$HOME/.android/sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          
+          # Build APK
           cd android
           buildozer -v android debug
-
-      # 7. Upload APK artifact
+      
+      # 9. Upload APK artifact
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: apk
+          name: apk-debug
           path: android/bin/*.apk
+          if-no-files-found: error
