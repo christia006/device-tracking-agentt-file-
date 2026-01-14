@@ -1,56 +1,100 @@
+# buildozer.spec
+
 [app]
-title = Device Tracker
-package.name = devicetracker
+
+# (str) Title of your application
+title = MyApp
+
+# (str) Package name
+package.name = myapp
+
+# (str) Package domain (reverse domain style)
 package.domain = org.example
+
+# (str) Source code directory
 source.dir = .
-source.include_exts = py
-version = 1.0
-requirements = python3,kivy,requests,certifi
 
-# Icon dan splash (opsional - hapus jika tidak ada)
-#icon.filename = %(source.dir)s/icon.png
-#presplash.filename = %(source.dir)s/presplash.png
+# (list) Source files to include (let empty to include all)
+source.include_exts = py,png,jpg,kv,atlas
 
-# Permissions minimal
-android.permissions = INTERNET,ACCESS_FINE_LOCATION,ACCESS_COARSE_LOCATION,ACCESS_NETWORK_STATE,WAKE_LOCK
+# (str) Application version
+version = 1.0.0
 
-[buildozer]
-log_level = 2
-warn_on_root = 1
+# (int) Application version code (for Android)
+version.code = 1
 
-# Android Configuration - OPTIMIZED
-android.api = 31
+# (str) Python entry point
+entrypoint = main.py
+
+# (list) Requirements
+requirements = python3,kivy
+
+# (bool) Include data files in APK
+# include all *.kv and images by default
+# source.include_exts already menangani ini
+
+# (str) Icon of the app
+icon.filename = %(source.dir)s/icon.png
+
+# (str) Supported orientation (portrait, landscape, all)
+orientation = portrait
+
+# (bool) fullscreen or not
+fullscreen = 0
+
+# (list) Android permissions
+android.permissions = INTERNET,ACCESS_FINE_LOCATION
+
+# ---------------- Android configuration ----------------
+
+# (int) Target Android API, should be as high as possible
+android.api = 34
+
+# (int) Minimum API your APK / AAB will support
 android.minapi = 21
+
+# (int) Android SDK version to use
+android.sdk = 34
+
+# (str) Android NDK version to use
 android.ndk = 25b
 
-# CRITICAL: Single architecture untuk ukuran kecil
-android.archs = arm64-v8a
+# (int) Android NDK API to use
+android.ndk_api = 21
 
-# SDK Configuration
-android.skip_update = True
-android.accept_sdk_license = True
+# (str) Path to custom SDK/NDK (optional)
+# android.sdk_path =
+# android.ndk_path =
 
-# Gradle optimization
-android.gradle_dependencies = 
+# (str) Android entry point, default is ok for Kivy
+# android.entrypoint = org.kivy.android.PythonActivity
 
-# Meta-data
-android.meta_data = 
+# (list) Android additional libraries to copy to APK
+# android.add_libs_armeabi_v7a = libs/*.so
+# android.add_libs_arm64_v8a = libs/*.so
 
-# Orientation
-android.orientation = portrait
+# (list) Android Java source files (if needed)
+# android.add_src =
 
-# Fullscreen
-#android.fullscreen = 1
+# (str) Android logcat filters to use
+# android.logcat_filters = *:S python:D
 
-# Add python activity
-p4a.branch = master
-p4a.bootstrap = sdl2
+# (bool) Copy Android assets (e.g., fonts) automatically
+# android.copy_assets = 1
 
-# Whitelist
-android.whitelist = lib-dynload/termios.so
+# ---------------- Buildozer behavior ----------------
 
-# Blacklist (untuk mengurangi ukuran)
-android.blacklist = test,tests,__pycache__,*.pyc,*.pyo
+# (str) Command to use for build
+# buildozer-cmd already diatur di GitHub Actions
 
-# Exclude unnecessary files
-android.blacklist_src = tests,spec,docs
+# (bool) Clear previous builds
+# clean_build = True
+
+# (bool) Verbose mode
+log_level = 2
+
+# (str) Path to build directory
+build_dir = ./build
+
+# (str) Path to bin directory (APK output)
+bin_dir = ./bin
