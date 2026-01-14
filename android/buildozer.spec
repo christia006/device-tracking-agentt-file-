@@ -1,6 +1,5 @@
-# File: android/buildozer.spec (Perbaikan)
-
 [app]
+
 # Basic info
 title = MyApp
 package.name = myapp
@@ -28,7 +27,7 @@ fullscreen = 0
 # Permissions
 android.permissions = INTERNET,ACCESS_FINE_LOCATION
 
-# Android Configuration (Sesuaikan dengan SDK yang diinstall)
+# ---------------- Android Configuration ----------------
 android.api = 34
 android.minapi = 21
 android.sdk = 34
@@ -41,12 +40,11 @@ android.accept_sdk_license = True
 # Skip update jika SDK sudah ada
 android.skip_update = False
 
-# Build tools version (sesuaikan dengan yang diinstall)
-# Buildozer akan otomatis detect
-
 # Architecture
 android.archs = arm64-v8a,armeabi-v7a
 
 # Buildozer settings
 log_level = 2
 warn_on_root = 1
+build_dir = ./build
+bin_dir = ./bin
