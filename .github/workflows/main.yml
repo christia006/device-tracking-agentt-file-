@@ -46,22 +46,17 @@ jobs:
           unzip -q commandlinetools-linux-9477386_latest.zip
           mv cmdline-tools latest
 
-          # ⚡ Symlink untuk Buildozer
-          mkdir -p $SDK_DIR/tools
-          ln -s $SDK_DIR/cmdline-tools/latest $SDK_DIR/tools/latest
-          ln -s $SDK_DIR/cmdline-tools/latest/bin $SDK_DIR/tools/bin
-
-          # Export environment
+          # ⚡ Export environment
           echo "export ANDROID_SDK_ROOT=$SDK_DIR" >> $GITHUB_ENV
-          echo "export PATH=\$PATH:$SDK_DIR/tools/bin:$SDK_DIR/platform-tools" >> $GITHUB_ENV
+          echo "export PATH=\$PATH:$SDK_DIR/cmdline-tools/latest/bin:$SDK_DIR/platform-tools" >> $GITHUB_ENV
 
       - name: Accept Android Licenses
         run: |
-          yes | $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --licenses
+          yes | $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
 
       - name: Install SDK Packages
         run: |
-          $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Setup Android NDK
         run: |
@@ -77,7 +72,7 @@ jobs:
         run: |
           export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
           export ANDROID_NDK_ROOT=$HOME/.buildozer/android/platform/android-ndk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/tools/bin:$ANDROID_SDK_ROOT/platform-tools
+          export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools
 
           cd android
           buildozer -v android debug
