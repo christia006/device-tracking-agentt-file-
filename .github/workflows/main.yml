@@ -1,245 +1,5 @@
-
-# (str) Source code directory
-source.dir = .
-# (list) Source files to include (let empty to include all)
-source.include_exts = py,png,jpg,kv,atlas
-# (str) Application version
-version = 1.0.0
-# (int) Application version code (for Android)
-version.code = 1
-# (str) Python entry point
-entrypoint = main.py
-# (list) Requirements
-requirements = python3,kivy
-# (bool) Include data files in APK
-# include all *.kv and images by default
-# source.include_exts already menangani ini
-# (str) Icon of the app
-icon.filename = %(source.dir)s/icon.png
-# (str) Supported orientation (portrait, landscape, all)
-orientation = portrait
-# (bool) fullscreen or not
-fullscreen = 0
-# (list) Android permissions
-android.permissions = INTERNET,ACCESS_FINE_LOCATION
-# ---------------- Android configuration ----------------
-# (int) Target Android API, should be as high as possible
-android.api = 34
-# (int) Minimum API your APK / AAB will support
-android.minapi = 21
-# (int) Android SDK version to use
-android.sdk = 34
-# (str) Android NDK version to use
-android.ndk = 25b
-# (int) Android NDK API to use
-android.ndk_api = 21
-# (str) Path to custom SDK/NDK (optional)
-# android.sdk_path =
-# android.ndk_path =
-# (str) Android entry point, default is ok for Kivy
-# android.entrypoint = org.kivy.android.PythonActivity
-# (list) Android additional libraries to copy to APK
-# android.add_libs_armeabi_v7a = libs/*.so
-# android.add_libs_arm64_v8a = libs/*.so
-# (list) Android Java source files (if needed)
-# android.add_src =
-# (str) Android logcat filters to use
-# android.logcat_filters = *:S python:D
-# (bool) Copy Android assets (e.g., fonts) automatically
-# android.copy_assets = 1
-# ---------------- Buildozer behavior ----------------
-# (str) Command to use for build
-# buildozer-cmd already diatur di GitHub Actions
-# (bool) Clear previous builds
-# clean_build = True
-# (bool) Verbose mode
-log_level = 2
-# (str) Path to build directory
-build_dir = ./build
-# (str) Path to bin directory (APK output)
-bin_dir = ./bin
-   dan masih error   January 16, 2019
----------------------------------------
-Accept? (y/N): Skipping following packages as the license is not accepted:
-Android SDK Build-Tools 36.1
-The following packages can not be installed since their licenses or those of the packages they depend on were not accepted:
-  build-tools;36.1.0
-[=======================================] 100% Computing updates...
-# Check that aidl can be executed
-# build-tools folder not found /home/runner/.buildozer/android/platform/android-sdk/build-tools
-# Search for Aidl
-# Aidl not found, please install it.
-Error: Process completed with exit code 1.  dan main.yml  name: Build APK
-on:
-  push:
-    branches: [ main ]
-jobs:
-  build:
-    runs-on: ubuntu-22.04
-
-    steps:
-      # 1. Checkout kode
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # 2. Setup Python 3.11
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      # 3. Setup Java (OpenJDK 17)
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # 4. Install Linux dependencies Buildozer/Android
-      - name: Install Linux dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            python3-pip \
-            build-essential \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo5 \
-            libffi-dev \
-            libssl-dev \
-            git \
-            unzip \
-            zip \
-            openjdk-17-jdk \
-            cmake \
-            ccache \
-            libgoogle-perftools4 \
-            libc6 \
-            libstdc++6 \
-            libpulse0 \
-            libasound2 \
-            x11-utils \
-            libatk-wrapper-java \
-            libatk-wrapper-java-jni \
-            libpcsclite1 \
-            librhash0
-
-      # 5. Install Buildozer & dependencies Python
-      - name: Install Buildozer
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install --upgrade Cython==0.29.33
-          pip install --upgrade buildozer
-
-      # 6. Setup Android SDK dan Accept Licenses
-      - name: Setup Android SDK and Accept Licenses
-        run: |
-          # Install Android SDK Command-line tools
-          mkdir -p $HOME/.android/sdk/cmdline-tools
-          cd $HOME/.android/sdk/cmdline-tools
-          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip commandlinetools-linux-9477386_latest.zip
-          mv cmdline-tools latest
-
-          # Set environment variables
-          export ANDROID_HOME=$HOME/.android/sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-
-          # Accept all licenses
-          yes | sdkmanager --licenses || true
-
-          # Install required SDK components
-          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2" "cmdline-tools;latest"
-
-          # Verify installation
-          sdkmanager --list_installed
-
-      # 7. Cache Buildozer dependencies
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-${{ hashFiles('android/buildozer.spec') }}
-
-      # 8. Build APK
-      - name: Build APK
-        env:
-          ANDROID_HOME: ${{ github.workspace }}/.android/sdk
-        run: |
-          # Set Android SDK path untuk Buildozer
-          export ANDROID_HOME=$HOME/.android/sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-
-          # Build APK
-          cd android
-          buildozer -v android debug
-
-      # 9. Upload APK artifact
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-debug
-          path: android/bin/*.apk
-          if-no-files-found: error
-
-Tampilkan lebih banyak
-1:22 PM
-Saya lihat masalahnya! Buildozer mencoba menginstall build-tools;36.1.0 (dari buildozer.spec Anda yang set android.api = 34), tapi kita hanya install build-tools;33.0.2. Buildozer juga punya direktori SDK sendiri di ~/.buildozer/android/platform/android-sdk.
-
-Berikut solusi lengkapnya:
-
-Complete Fixed Workflow & Buildozer Spec
-Kode 
-Perubahan Kunci yang Mengatasi Error:
-1. Install SDK ke Lokasi Buildozer
-bash
-~/.buildozer/android/platform/android-sdk
-Buildozer mencari SDK di lokasi ini, bukan di $HOME/.android/sdk
-
-2. Install Build-Tools yang Sesuai
-Install build-tools;34.0.0 (sesuai dengan android.api = 34)
-Buildozer akan mencari build-tools yang match dengan API level
-3. Install NDK Secara Manual
-Download NDK r25b sesuai buildozer.spec
-Extract ke ~/.buildozer/android/platform/android-ndk
-4. Accept Licenses di Lokasi yang Benar
-bash
-export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
-yes | sdkmanager --licenses
-5. Update buildozer.spec
-Tambahkan:
-
-ini
-android.accept_sdk_license = True
-android.archs = arm64-v8a,armeabi-v7a
-6. Verifikasi Sebelum Build
-Step terpisah untuk memastikan build-tools terinstall sebelum buildozer berjalan.
-
-7. Environment Variables yang Tepat
-bash
-ANDROID_SDK_ROOT (bukan ANDROID_HOME untuk Buildozer)
-ANDROID_NDK_ROOT
-File yang perlu diupdate:
-
-.github/workflows/main.yml - gunakan kode di atas
-android/buildozer.spec - update dengan config di bawah komentar "File: android/buildozer.spec"
-Workflow ini akan mengatasi error "Aidl not found" karena sekarang:
-✅ SDK diinstall di lokasi yang benar untuk Buildozer
-✅ Build-tools version match dengan API level
-✅ Licenses sudah di-accept sebelum Buildozer jalan
-✅ NDK sudah tersedia di lokasi yang benar
-
-
-
-
-
-
-Claude adalah AI dan bisa keliru. Harap periksa kembali respons.
 name: Build APK
+
 on:
   push:
     branches: [ main ]
@@ -247,114 +7,82 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    
+
     steps:
       # 1. Checkout kode
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      # 2. Setup Python 3.11
+
+      # 2. Setup Python
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       # 3. Setup Java (OpenJDK 17)
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-      
+
       # 4. Install Linux dependencies
       - name: Install Linux dependencies
         run: |
           sudo apt update
           sudo apt install -y \
-            python3-pip \
-            build-essential \
-            git \
-            zip \
-            unzip \
-            openjdk-17-jdk \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo5 \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            libltdl-dev \
-            ccache
-      
-      # 5. Install Buildozer
+            python3-pip build-essential git zip unzip openjdk-17-jdk \
+            autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
+            libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+            libltdl-dev ccache
+
+      # 5. Install Buildozer & Cython
       - name: Install Buildozer and Cython
         run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade wheel setuptools
+          python3 -m pip install --upgrade pip wheel setuptools
           pip install --upgrade Cython==0.29.33
           pip install --upgrade buildozer
-      
-      # 6. Setup Android SDK for Buildozer
+
+      # 6. Setup Android SDK untuk Buildozer
       - name: Setup Android SDK
         run: |
-          # Buat direktori SDK untuk Buildozer
-          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
-          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
-          
-          # Download command line tools
+          SDK_DIR=~/.buildozer/android/platform/android-sdk
+          mkdir -p $SDK_DIR/cmdline-tools
+          cd $SDK_DIR/cmdline-tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
           unzip -q commandlinetools-linux-9477386_latest.zip
           mv cmdline-tools latest
-          
-          # Set environment
-          export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
+
+          export ANDROID_SDK_ROOT=$SDK_DIR
           export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-          
-          # Accept licenses terlebih dahulu
+
+          # Accept semua licenses
           yes | sdkmanager --licenses || true
-          
-          # Install SDK components yang sesuai dengan buildozer.spec
-          sdkmanager --install "platform-tools" || true
-          sdkmanager --install "platforms;android-34" || true
-          sdkmanager --install "build-tools;34.0.0" || true
-          sdkmanager --install "cmdline-tools;latest" || true
-          
-          # Verify
+
+          # Install SDK sesuai buildozer.spec
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;latest"
+
           echo "Installed SDK components:"
           sdkmanager --list_installed
-      
+
       # 7. Setup Android NDK
       - name: Setup Android NDK
         run: |
-          # Download NDK 25b sesuai buildozer.spec
-          mkdir -p ~/.buildozer/android/platform
-          cd ~/.buildozer/android/platform
-          
+          PLATFORM_DIR=~/.buildozer/android/platform
+          mkdir -p $PLATFORM_DIR
+          cd $PLATFORM_DIR
           wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip -q android-ndk-r25b-linux.zip
           mv android-ndk-r25b android-ndk
-          
-          echo "NDK installed at: ~/.buildozer/android/platform/android-ndk"
-      
-      # 8. Accept licenses sekali lagi sebelum build
+          echo "NDK installed at $PLATFORM_DIR/android-ndk"
+
+      # 8. Accept licenses sekali lagi
       - name: Accept Android Licenses
         run: |
           export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
           export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-          
-          # Accept semua licenses
-          yes | sdkmanager --licenses 2>&1 || true
-          
-          # Pastikan build-tools ada
-          if [ ! -d "$ANDROID_SDK_ROOT/build-tools" ]; then
-            echo "Installing build-tools..."
-            sdkmanager --install "build-tools;34.0.0"
-          fi
-      
+          yes | sdkmanager --licenses || true
+
       # 9. Cache Buildozer
       - name: Cache Buildozer directory
         uses: actions/cache@v4
@@ -365,26 +93,23 @@ jobs:
           key: buildozer-cache-${{ hashFiles('android/buildozer.spec') }}
           restore-keys: |
             buildozer-cache-
-      
+
       # 10. Build APK
       - name: Build APK with Buildozer
         run: |
-          # Set environment variables
           export ANDROID_SDK_ROOT=~/.buildozer/android/platform/android-sdk
           export ANDROID_NDK_ROOT=~/.buildozer/android/platform/android-ndk
           export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools
-          
-          # Debug info
+
           echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
           echo "ANDROID_NDK_ROOT: $ANDROID_NDK_ROOT"
           echo "Build-tools location:"
           ls -la $ANDROID_SDK_ROOT/build-tools/ || echo "Build-tools not found"
-          
-          # Build
+
           cd android
           buildozer -v android debug
-      
-      # 11. Upload APK
+
+      # 11. Upload APK artifact
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
