@@ -52,8 +52,9 @@ jobs:
           ln -sf $SDK_DIR/cmdline-tools/latest/bin/avdmanager $SDK_DIR/tools/bin/avdmanager
 
           # Export environment
-          echo "export ANDROID_SDK_ROOT=$SDK_DIR" >> $GITHUB_ENV
-          echo "export PATH=\$PATH:$SDK_DIR/tools/bin:$SDK_DIR/platform-tools" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> $GITHUB_ENV
+          echo "$SDK_DIR/tools/bin" >> $GITHUB_PATH
+          echo "$SDK_DIR/platform-tools" >> $GITHUB_PATH
 
       - name: Accept Android Licenses
         run: |
@@ -70,15 +71,10 @@ jobs:
           cd $PLATFORM_DIR
           wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
           unzip -q android-ndk-r25b-linux.zip
-          mv android-ndk-r25b android-ndk
-          echo "NDK installed at $PLATFORM_DIR/android-ndk"
+          echo "ANDROID_NDK_ROOT=$PLATFORM_DIR/android-ndk-r25b" >> $GITHUB_ENV
 
       - name: Build APK with Buildozer
         run: |
-          export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
-          export ANDROID_NDK_ROOT=$HOME/.buildozer/android/platform/android-ndk
-          export PATH=$PATH:$ANDROID_SDK_ROOT/tools/bin:$ANDROID_SDK_ROOT/platform-tools
-
           cd android
           buildozer -v android debug
 
